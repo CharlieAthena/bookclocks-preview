@@ -17,20 +17,13 @@ interface ClockOverlayProps {
   markerStyle: MarkerStyle;
   containerWidth: number;
   containerHeight: number;
+  markerRadiusFactor?: number; // custom multiplier for marker circle (default 1.55)
 }
 
-/**
- * Renders clock hands and optional markers as an SVG overlay.
- * Hands are pre-rotated to the classic 10:10 display position.
- *
- * 10:10 means:
- *   - Hour hand: ~10h 10m = 10.167 hours = 305 degrees from 12
- *   - Minute hand: 10 minutes = 60 degrees from 12
- */
 const HOUR_ANGLE = 305;
 const MINUTE_ANGLE = 60;
 
-const MARKER_RADIUS_FACTOR = 1.55;
+const DEFAULT_MARKER_RADIUS_FACTOR = 1.55;
 
 export default function ClockOverlay({
   centerX,
@@ -41,15 +34,15 @@ export default function ClockOverlay({
   markerStyle,
   containerWidth,
   containerHeight,
+  markerRadiusFactor = DEFAULT_MARKER_RADIUS_FACTOR,
 }: ClockOverlayProps) {
   const cx = centerX * containerWidth;
   const cy = centerY * containerHeight;
 
-  // Base scale — hands are designed in a ~46px radius coordinate system.
-  const baseScale = Math.min(containerWidth, containerHeight) / 280;
+  const baseScale = Math.min(containerWidth, containerHeight) / 180;
   const scale = baseScale * handSize;
 
-  const markerRadius = 46 * scale * MARKER_RADIUS_FACTOR;
+  const markerRadius = 46 * scale * markerRadiusFactor;
 
   // Use a unique filter ID to avoid collisions if multiple overlays render
   const filterId = `handShadow-${handStyle.id}`;
@@ -149,8 +142,9 @@ export default function ClockOverlay({
         <path
           d={handStyle.hourHandPath}
           fill={handColor}
-          stroke={handColor === "#F5F5F5" ? "#999" : "none"}
-          strokeWidth={handColor === "#F5F5F5" ? 0.5 : 0}
+          stroke={handColor === "#F5F5F5" ? "#999" : handColor}
+          strokeWidth={handColor === "#F5F5F5" ? 0.8 : 1.2}
+          strokeLinejoin="round"
           filter={`url(#${filterId})`}
         />
       </g>
@@ -160,8 +154,9 @@ export default function ClockOverlay({
         <path
           d={handStyle.minuteHandPath}
           fill={handColor}
-          stroke={handColor === "#F5F5F5" ? "#999" : "none"}
-          strokeWidth={handColor === "#F5F5F5" ? 0.5 : 0}
+          stroke={handColor === "#F5F5F5" ? "#999" : handColor}
+          strokeWidth={handColor === "#F5F5F5" ? 0.8 : 0.8}
+          strokeLinejoin="round"
           filter={`url(#${filterId})`}
         />
       </g>

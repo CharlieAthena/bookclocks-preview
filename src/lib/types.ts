@@ -6,6 +6,10 @@ export interface Book {
   coverId: string | null;
   isbn: string | null;
   coverUrl: string | null;
+  publisher: string | null;
+  pages: number | null;
+  clockScore: number; // 0-100, how good a fit this book is for a book clock
+  clockBadge: string | null; // "Perfect Fit", "Great Cover", "Collector's Edition", etc.
 }
 
 export interface ClockConfig {

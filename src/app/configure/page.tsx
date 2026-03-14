@@ -33,6 +33,7 @@ function MiniPreview({
   handColor,
   handSize,
   markerStyle,
+  markerRadiusFactor = 1.55,
   label,
   onClick,
 }: {
@@ -43,6 +44,7 @@ function MiniPreview({
   handColor: string;
   handSize: number;
   markerStyle: MarkerStyle;
+  markerRadiusFactor?: number;
   label: string;
   onClick: () => void;
 }) {
@@ -88,6 +90,7 @@ function MiniPreview({
             markerStyle={markerStyle}
             containerWidth={dims.w}
             containerHeight={dims.h}
+            markerRadiusFactor={markerRadiusFactor}
           />
         )}
       </div>
@@ -110,6 +113,7 @@ function FullscreenPreview({
   handColor,
   handSize,
   markerStyle,
+  markerRadiusFactor = 1.55,
   giverName,
   recipientName,
   onClose,
@@ -123,6 +127,7 @@ function FullscreenPreview({
   handColor: string;
   handSize: number;
   markerStyle: MarkerStyle;
+  markerRadiusFactor?: number;
   giverName: string;
   recipientName: string;
   onClose: () => void;
@@ -219,6 +224,7 @@ function FullscreenPreview({
               markerStyle={markerStyle}
               containerWidth={dims.w}
               containerHeight={dims.h}
+              markerRadiusFactor={markerRadiusFactor}
             />
           )}
         </div>
@@ -263,6 +269,9 @@ function ConfiguratorInner() {
   const [containerDims, setContainerDims] = useState({ w: 0, h: 0 });
   const [coverLoaded, setCoverLoaded] = useState(false);
   const [showFullscreen, setShowFullscreen] = useState(false);
+  const [bookType, setBookType] = useState<"hardback" | "paperback">("hardback");
+  const [markerRadius, setMarkerRadius] = useState(1.55); // multiplier for marker circle radius
+  const [showRender, setShowRender] = useState(false);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const rippleCounter = useRef(0);
@@ -331,11 +340,16 @@ function ConfiguratorInner() {
   }, []);
 
   // --- Pricing ---
-  const bookPrice = 12.99;
+  const bookPrice = bookType === "paperback" ? 9.99 : 12.99;
   const clockBasePrice = 25.0;
   const craftFee = 15.0;
   const styleModifier = selectedStyle.priceModifier;
   const totalPrice = bookPrice + clockBasePrice + craftFee + styleModifier;
+
+  // When switching to paperback, if Large is selected, downgrade to Medium
+  const effectiveSize = bookType === "paperback" && selectedSize.id === "large"
+    ? HAND_SIZES[1] // medium
+    : selectedSize;
 
   // --- Add to Cart ---
   const handleAddToCart = () => {
@@ -349,8 +363,9 @@ function ConfiguratorInner() {
       handStyleName: selectedStyle.name,
       handColor: selectedColor,
       handColorName: HAND_COLORS.find((c) => c.hex === selectedColor)?.name || "",
-      handSize: selectedSize.id,
-      handSizeScale: selectedSize.scale,
+      bookType,
+      handSize: effectiveSize.id,
+      handSizeScale: effectiveSize.scale,
       markerStyle,
       centerX,
       centerY,
@@ -479,10 +494,11 @@ function ConfiguratorInner() {
                   centerY={centerY}
                   handStyle={selectedStyle}
                   handColor={selectedColor}
-                  handSize={selectedSize.scale}
+                  handSize={effectiveSize.scale}
                   markerStyle={markerStyle}
                   containerWidth={containerDims.w}
                   containerHeight={containerDims.h}
+                  markerRadiusFactor={markerRadius}
                 />
               )}
             </div>
@@ -505,6 +521,49 @@ function ConfiguratorInner() {
 
           {/* ====== RIGHT: Controls panel ====== */}
           <div className="lg:w-[40%] flex flex-col gap-6">
+            {/* Book Type Toggle */}
+            <section>
+              <h3 className="font-serif text-lg text-[#2D2D2D] mb-3">Book Type</h3>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setBookType("hardback")}
+                  className={`flex-1 py-2.5 rounded-lg text-sm font-medium border-2 transition-all duration-200 ${
+                    bookType === "hardback"
+                      ? "border-[#C5A572] bg-[#C5A572]/5 text-[#a88a57]"
+                      : "border-[#e8e6e0] text-[#2D2D2D]/60 hover:border-[#C5A572]/40 bg-white"
+                  }`}
+                >
+                  Hardback
+                </button>
+                <button
+                  onClick={() => {
+                    setBookType("paperback");
+                    // Downgrade hand size if Large is selected
+                    if (selectedSize.id === "large") {
+                      setSelectedSize(HAND_SIZES[1]);
+                    }
+                  }}
+                  className={`flex-1 py-2.5 rounded-lg text-sm font-medium border-2 transition-all duration-200 ${
+                    bookType === "paperback"
+                      ? "border-[#C5A572] bg-[#C5A572]/5 text-[#a88a57]"
+                      : "border-[#e8e6e0] text-[#2D2D2D]/60 hover:border-[#C5A572]/40 bg-white"
+                  }`}
+                >
+                  Paperback
+                </button>
+              </div>
+              {bookType === "hardback" && (
+                <p className="text-xs text-[#2D2D2D]/50 mt-2">
+                  Typical size: ~15cm &times; 23cm &times; 2.5cm
+                </p>
+              )}
+              {bookType === "paperback" && (
+                <p className="text-xs text-[#C5A572] mt-2">
+                  Paperback books may not support larger clock mechanisms. We recommend Small or Medium hands.
+                </p>
+              )}
+            </section>
+
             {/* Hand Style — product photos */}
             <section>
               <h3 className="font-serif text-lg text-[#2D2D2D] mb-3">Hand Style</h3>
@@ -633,17 +692,22 @@ function ConfiguratorInner() {
               <div className="flex gap-2">
                 {HAND_SIZES.map((size) => {
                   const active = selectedSize.id === size.id;
+                  const disabled = bookType === "paperback" && size.id === "large";
                   return (
                     <button
                       key={size.id}
-                      onClick={() => setSelectedSize(size)}
+                      onClick={() => !disabled && setSelectedSize(size)}
+                      disabled={disabled}
                       className={`flex-1 py-2.5 rounded-lg text-sm font-medium border-2 transition-all duration-200 ${
-                        active
-                          ? "border-[#C5A572] bg-[#C5A572]/5 text-[#a88a57]"
-                          : "border-[#e8e6e0] text-[#2D2D2D]/60 hover:border-[#C5A572]/40 bg-white"
+                        disabled
+                          ? "border-[#e8e6e0] text-[#2D2D2D]/20 bg-[#f5f5f5] cursor-not-allowed"
+                          : active
+                            ? "border-[#C5A572] bg-[#C5A572]/5 text-[#a88a57]"
+                            : "border-[#e8e6e0] text-[#2D2D2D]/60 hover:border-[#C5A572]/40 bg-white"
                       }`}
                     >
                       {size.name}
+                      {disabled && <span className="block text-[9px] text-[#2D2D2D]/30 mt-0.5">N/A for paperback</span>}
                     </button>
                   );
                 })}
@@ -671,6 +735,37 @@ function ConfiguratorInner() {
                   );
                 })}
               </div>
+
+              {/* Marker circle radius slider — only show when markers are active */}
+              {markerStyle !== "none" && (
+                <div className="mt-4">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-xs text-[#2D2D2D]/60">Marker circle size</label>
+                    <span className="text-xs text-[#C5A572] font-medium tabular-nums">
+                      {Math.round(markerRadius * 100 / 1.55)}%
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min={0.8}
+                    max={2.5}
+                    step={0.05}
+                    value={markerRadius}
+                    onChange={(e) => setMarkerRadius(parseFloat(e.target.value))}
+                    className="w-full h-1.5 rounded-full appearance-none cursor-pointer"
+                    style={{
+                      background: `linear-gradient(to right, #C5A572 ${((markerRadius - 0.8) / 1.7) * 100}%, #e8e6e0 ${((markerRadius - 0.8) / 1.7) * 100}%)`,
+                    }}
+                  />
+                  <div className="flex justify-between text-[10px] text-[#2D2D2D]/30 mt-1">
+                    <span>Tight</span>
+                    <span>Wide</span>
+                  </div>
+                  <p className="text-[10px] text-[#2D2D2D]/40 mt-1 italic">
+                    Purely decorative — adjust to fit the cover design
+                  </p>
+                </div>
+              )}
             </section>
 
             {/* Divider */}
@@ -681,7 +776,7 @@ function ConfiguratorInner() {
               <h3 className="font-serif text-lg text-[#2D2D2D] mb-3">Price</h3>
               <div className="bg-white rounded-xl border border-[#e8e6e0] p-4 space-y-2">
                 <div className="flex justify-between text-sm text-[#2D2D2D]/70">
-                  <span>Book</span>
+                  <span>Book ({bookType})</span>
                   <span>&pound;{bookPrice.toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between text-sm text-[#2D2D2D]/70">
@@ -706,13 +801,24 @@ function ConfiguratorInner() {
               </div>
             </section>
 
-            {/* Add to Cart */}
-            <button
-              onClick={handleAddToCart}
-              className="w-full py-4 rounded-xl bg-[#C5A572] text-white font-medium text-base tracking-wide hover:bg-[#a88a57] active:scale-[0.98] transition-all duration-200 shadow-md hover:shadow-lg"
-            >
-              Add to Cart &mdash; &pound;{totalPrice.toFixed(2)}
-            </button>
+            {/* Render & Buy buttons */}
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowRender(true)}
+                className="flex-1 py-4 rounded-xl bg-[#2D2D2D] text-white font-medium text-base tracking-wide hover:bg-[#1a1a1a] active:scale-[0.98] transition-all duration-200 shadow-md hover:shadow-lg flex items-center justify-center gap-2"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
+                </svg>
+                Visualise
+              </button>
+              <button
+                onClick={handleAddToCart}
+                className="flex-1 py-4 rounded-xl bg-[#C5A572] text-white font-medium text-base tracking-wide hover:bg-[#a88a57] active:scale-[0.98] transition-all duration-200 shadow-md hover:shadow-lg"
+              >
+                Buy &mdash; &pound;{totalPrice.toFixed(2)}
+              </button>
+            </div>
 
             {/* Personalisation banner */}
             {(giverName || recipientName) && (
@@ -760,7 +866,7 @@ function ConfiguratorInner() {
                 centerY={centerY}
                 handStyle={selectedStyle}
                 handColor={selectedColor}
-                handSize={selectedSize.scale}
+                handSize={effectiveSize.scale}
                 markerStyle={markerStyle}
                 label="Your Design"
                 onClick={() => {}}
@@ -773,7 +879,7 @@ function ConfiguratorInner() {
                 centerY={centerY}
                 handStyle={nextStyle}
                 handColor={selectedColor}
-                handSize={selectedSize.scale}
+                handSize={effectiveSize.scale}
                 markerStyle={markerStyle}
                 label={`Try ${nextStyle.name}`}
                 onClick={() => setSelectedStyle(nextStyle)}
@@ -786,7 +892,7 @@ function ConfiguratorInner() {
                 centerY={centerY}
                 handStyle={selectedStyle}
                 handColor={altColor}
-                handSize={selectedSize.scale}
+                handSize={effectiveSize.scale}
                 markerStyle={markerStyle}
                 label={altColor === goldColor ? "In Gold" : "In Brass"}
                 onClick={() => setSelectedColor(altColor)}
@@ -799,7 +905,7 @@ function ConfiguratorInner() {
                 centerY={centerY}
                 handStyle={selectedStyle}
                 handColor={selectedColor}
-                handSize={selectedSize.scale}
+                handSize={effectiveSize.scale}
                 markerStyle="roman"
                 label="With Numerals"
                 onClick={() => setMarkerStyle("roman")}
@@ -818,8 +924,9 @@ function ConfiguratorInner() {
           centerY={centerY}
           handStyle={selectedStyle}
           handColor={selectedColor}
-          handSize={selectedSize.scale}
+          handSize={effectiveSize.scale}
           markerStyle={markerStyle}
+          markerRadiusFactor={markerRadius}
           giverName={giverName}
           recipientName={recipientName}
           onClose={() => setShowFullscreen(false)}
@@ -828,6 +935,210 @@ function ConfiguratorInner() {
             setCenterY(y);
           }}
         />
+      )}
+
+      {/* Render / Visualise modal */}
+      {showRender && coverUrl && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-sm overflow-y-auto"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setShowRender(false);
+          }}
+        >
+          <button
+            onClick={() => setShowRender(false)}
+            className="absolute top-4 right-4 z-50 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors"
+            aria-label="Close"
+          >
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+              <line x1="4" y1="4" x2="16" y2="16" />
+              <line x1="16" y1="4" x2="4" y2="16" />
+            </svg>
+          </button>
+
+          <div className="max-w-5xl w-full mx-4 my-8">
+            <div className="text-center mb-8">
+              <h2 className="font-serif text-2xl text-white mb-2">Your Book Clock</h2>
+              <p className="text-white/50 text-sm">
+                {bookTitle}{bookAuthor ? ` by ${bookAuthor}` : ""} &middot; {selectedStyle.name} hands in {HAND_COLORS.find(c => c.hex === selectedColor)?.name || ""}
+              </p>
+            </div>
+
+            {/* Product shots grid — simulated render views */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              {/* Shot 1: Front-on hero shot */}
+              <div className="bg-[#f5f3ef] rounded-xl p-8 flex flex-col items-center">
+                <div className="relative w-full max-w-[220px] mx-auto">
+                  <img src={coverUrl} alt={bookTitle} className="w-full rounded shadow-xl" draggable={false} />
+                  <svg
+                    width="100%" height="100%"
+                    viewBox={`0 0 220 330`}
+                    className="absolute inset-0 pointer-events-none"
+                    style={{ overflow: "visible" }}
+                  >
+                    <defs>
+                      <filter id="renderShadow" x="-50%" y="-50%" width="200%" height="200%">
+                        <feDropShadow dx="0.5" dy="1" stdDeviation="1.2" floodColor="#000" floodOpacity="0.3" />
+                      </filter>
+                    </defs>
+                    <g transform={`translate(${centerX * 220}, ${centerY * 330}) rotate(305) scale(0.55)`}>
+                      <path d={selectedStyle.hourHandPath} fill={selectedColor} filter="url(#renderShadow)" />
+                    </g>
+                    <g transform={`translate(${centerX * 220}, ${centerY * 330}) rotate(60) scale(0.55)`}>
+                      <path d={selectedStyle.minuteHandPath} fill={selectedColor} filter="url(#renderShadow)" />
+                    </g>
+                    <circle cx={centerX * 220} cy={centerY * 330} r={3} fill="#B5893B" stroke="#8B6914" strokeWidth={0.5} />
+                  </svg>
+                </div>
+                <p className="text-xs text-[#2D2D2D]/50 mt-4 font-medium">Front View</p>
+              </div>
+
+              {/* Shot 2: Angled perspective */}
+              <div className="bg-[#f5f3ef] rounded-xl p-8 flex flex-col items-center">
+                <div className="relative w-full max-w-[220px] mx-auto" style={{ perspective: "800px" }}>
+                  <div style={{ transform: "rotateY(-15deg) rotateX(5deg)" }}>
+                    <img src={coverUrl} alt={bookTitle} className="w-full rounded shadow-xl" draggable={false} />
+                    <svg
+                      width="100%" height="100%"
+                      viewBox={`0 0 220 330`}
+                      className="absolute inset-0 pointer-events-none"
+                    >
+                      <g transform={`translate(${centerX * 220}, ${centerY * 330}) rotate(305) scale(0.55)`}>
+                        <path d={selectedStyle.hourHandPath} fill={selectedColor} />
+                      </g>
+                      <g transform={`translate(${centerX * 220}, ${centerY * 330}) rotate(60) scale(0.55)`}>
+                        <path d={selectedStyle.minuteHandPath} fill={selectedColor} />
+                      </g>
+                      <circle cx={centerX * 220} cy={centerY * 330} r={3} fill="#B5893B" />
+                    </svg>
+                  </div>
+                  {/* Simulated book spine */}
+                  <div className="absolute left-0 top-0 bottom-0 w-6 bg-gradient-to-r from-[#8B7355] to-[#a08868] rounded-l shadow-inner" style={{ transform: "translateX(-22px) rotateY(70deg)", transformOrigin: "right" }} />
+                </div>
+                <p className="text-xs text-[#2D2D2D]/50 mt-4 font-medium">Angled View</p>
+              </div>
+
+              {/* Shot 3: On a shelf / lifestyle context */}
+              <div className="bg-gradient-to-b from-[#e8e4dc] to-[#d4cfc5] rounded-xl p-8 flex flex-col items-center justify-end">
+                <div className="relative w-full max-w-[180px] mx-auto mb-4">
+                  <img src={coverUrl} alt={bookTitle} className="w-full rounded shadow-2xl" draggable={false} />
+                  <svg
+                    width="100%" height="100%"
+                    viewBox={`0 0 180 270`}
+                    className="absolute inset-0 pointer-events-none"
+                  >
+                    <g transform={`translate(${centerX * 180}, ${centerY * 270}) rotate(305) scale(0.45)`}>
+                      <path d={selectedStyle.hourHandPath} fill={selectedColor} />
+                    </g>
+                    <g transform={`translate(${centerX * 180}, ${centerY * 270}) rotate(60) scale(0.45)`}>
+                      <path d={selectedStyle.minuteHandPath} fill={selectedColor} />
+                    </g>
+                    <circle cx={centerX * 180} cy={centerY * 270} r={2.5} fill="#B5893B" />
+                  </svg>
+                </div>
+                {/* Simulated shelf */}
+                <div className="w-full h-3 bg-[#8B7355] rounded-sm shadow-md" />
+                <p className="text-xs text-[#2D2D2D]/50 mt-4 font-medium">On a Shelf</p>
+              </div>
+
+              {/* Shot 4: Gift-wrapped context */}
+              <div className="bg-[#FDFBF7] rounded-xl p-8 flex flex-col items-center border border-[#e8e6e0]">
+                <div className="relative w-full max-w-[200px] mx-auto">
+                  <img src={coverUrl} alt={bookTitle} className="w-full rounded shadow-lg" draggable={false} />
+                  <svg
+                    width="100%" height="100%"
+                    viewBox={`0 0 200 300`}
+                    className="absolute inset-0 pointer-events-none"
+                  >
+                    <g transform={`translate(${centerX * 200}, ${centerY * 300}) rotate(305) scale(0.5)`}>
+                      <path d={selectedStyle.hourHandPath} fill={selectedColor} />
+                    </g>
+                    <g transform={`translate(${centerX * 200}, ${centerY * 300}) rotate(60) scale(0.5)`}>
+                      <path d={selectedStyle.minuteHandPath} fill={selectedColor} />
+                    </g>
+                    <circle cx={centerX * 200} cy={centerY * 300} r={2.5} fill="#B5893B" />
+                  </svg>
+                </div>
+                {(giverName || recipientName) && (
+                  <p className="text-sm text-[#2D2D2D]/60 mt-4 italic text-center">
+                    &ldquo;{recipientName ? `For ${recipientName}` : "A special gift"}{giverName ? `, with love from ${giverName}` : ""}&rdquo;
+                  </p>
+                )}
+                <p className="text-xs text-[#2D2D2D]/50 mt-2 font-medium">Gift Ready</p>
+              </div>
+
+              {/* Shot 5: Close-up of mechanism */}
+              <div className="bg-[#f5f3ef] rounded-xl p-8 flex flex-col items-center">
+                <div className="relative w-full max-w-[220px] mx-auto overflow-hidden rounded-lg">
+                  <img
+                    src={coverUrl}
+                    alt={bookTitle}
+                    className="w-full scale-[2] shadow-xl"
+                    style={{
+                      transformOrigin: `${centerX * 100}% ${centerY * 100}%`,
+                    }}
+                    draggable={false}
+                  />
+                  <svg
+                    width="100%" height="100%"
+                    viewBox={`0 0 220 330`}
+                    className="absolute inset-0 pointer-events-none"
+                    style={{ transform: "scale(2)", transformOrigin: `${centerX * 100}% ${centerY * 100}%` }}
+                  >
+                    <g transform={`translate(${centerX * 220}, ${centerY * 330}) rotate(305) scale(0.55)`}>
+                      <path d={selectedStyle.hourHandPath} fill={selectedColor} />
+                    </g>
+                    <g transform={`translate(${centerX * 220}, ${centerY * 330}) rotate(60) scale(0.55)`}>
+                      <path d={selectedStyle.minuteHandPath} fill={selectedColor} />
+                    </g>
+                    <circle cx={centerX * 220} cy={centerY * 330} r={3} fill="#B5893B" stroke="#8B6914" strokeWidth={0.5} />
+                  </svg>
+                </div>
+                <p className="text-xs text-[#2D2D2D]/50 mt-4 font-medium">Detail Close-Up</p>
+              </div>
+
+              {/* Shot 6: Dimensions / specs */}
+              <div className="bg-[#2D2D2D] rounded-xl p-8 flex flex-col items-center justify-center text-center">
+                <div className="text-white/80 space-y-3">
+                  <p className="text-xs text-[#C5A572] uppercase tracking-wider font-medium">Specifications</p>
+                  <div className="space-y-2 text-sm">
+                    <p><span className="text-white/40">Style:</span> <span className="text-white">{selectedStyle.name}</span></p>
+                    <p><span className="text-white/40">Colour:</span> <span className="text-white">{HAND_COLORS.find(c => c.hex === selectedColor)?.name}</span></p>
+                    <p><span className="text-white/40">Size:</span> <span className="text-white">{effectiveSize.name}</span></p>
+                    <p><span className="text-white/40">Type:</span> <span className="text-white capitalize">{bookType}</span></p>
+                    <p><span className="text-white/40">Movement:</span> <span className="text-white">Silent quartz sweep</span></p>
+                    <p><span className="text-white/40">Battery:</span> <span className="text-white">1x AA (included)</span></p>
+                  </div>
+                  <div className="pt-3 border-t border-white/10">
+                    <p className="text-2xl font-serif text-[#C5A572]">&pound;{totalPrice.toFixed(2)}</p>
+                    <p className="text-[10px] text-white/30 mt-1">Free UK shipping</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Disclaimer */}
+            <p className="text-center text-white/30 text-[11px] mt-6">
+              Renders are for illustration purposes only. The finished product is handcrafted and may vary slightly from the preview.
+            </p>
+
+            {/* Action buttons */}
+            <div className="flex justify-center gap-4 mt-6">
+              <button
+                onClick={() => setShowRender(false)}
+                className="px-6 py-3 rounded-xl border border-white/20 text-white/70 text-sm hover:bg-white/5 transition-colors"
+              >
+                Back to Editor
+              </button>
+              <button
+                onClick={() => { setShowRender(false); handleAddToCart(); }}
+                className="px-8 py-3 rounded-xl bg-[#C5A572] text-white font-medium text-sm hover:bg-[#a88a57] transition-colors shadow-lg"
+              >
+                Buy Now &mdash; &pound;{totalPrice.toFixed(2)}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Ripple keyframes */}
@@ -846,6 +1157,25 @@ function ConfiguratorInner() {
         }
         .fallback-svg svg {
           opacity: 0.5 !important;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+          -webkit-appearance: none;
+          width: 16px;
+          height: 16px;
+          border-radius: 50%;
+          background: #C5A572;
+          cursor: pointer;
+          border: 2px solid white;
+          box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+        }
+        input[type="range"]::-moz-range-thumb {
+          width: 16px;
+          height: 16px;
+          border-radius: 50%;
+          background: #C5A572;
+          cursor: pointer;
+          border: 2px solid white;
+          box-shadow: 0 1px 3px rgba(0,0,0,0.2);
         }
       `}</style>
     </div>
