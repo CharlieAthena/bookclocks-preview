@@ -27,10 +27,10 @@ interface ClockOverlayProps {
  *   - Hour hand: ~10h 10m = 10.167 hours = 305 degrees from 12
  *   - Minute hand: 10 minutes = 60 degrees from 12
  */
-const HOUR_ANGLE = 305; // 10 hours + ~10 min offset
-const MINUTE_ANGLE = 60; // 10 minutes
+const HOUR_ANGLE = 305;
+const MINUTE_ANGLE = 60;
 
-const MARKER_RADIUS_FACTOR = 1.55; // markers sit outside the hand tips
+const MARKER_RADIUS_FACTOR = 1.55;
 
 export default function ClockOverlay({
   centerX,
@@ -46,11 +46,22 @@ export default function ClockOverlay({
   const cy = centerY * containerHeight;
 
   // Base scale — hands are designed in a ~46px radius coordinate system.
-  // We want them to look proportional to the container.
   const baseScale = Math.min(containerWidth, containerHeight) / 280;
   const scale = baseScale * handSize;
 
   const markerRadius = 46 * scale * MARKER_RADIUS_FACTOR;
+
+  // Use a unique filter ID to avoid collisions if multiple overlays render
+  const filterId = `handShadow-${handStyle.id}`;
+  const brassFilterId = `brassGlow-${handStyle.id}`;
+
+  // Determine if we should auto-show markers for large size
+  const effectiveMarkerStyle: MarkerStyle =
+    handSize >= 1.3 && markerStyle === "none" ? "dots" : markerStyle;
+
+  // Brass center pin colour
+  const brassFill = "#B5893B";
+  const brassHighlight = "#D4AF61";
 
   return (
     <svg
@@ -59,35 +70,52 @@ export default function ClockOverlay({
       className="absolute inset-0 pointer-events-none"
       style={{ overflow: "visible" }}
     >
+      <defs>
+        {/* Drop shadow for hands */}
+        <filter id={filterId} x="-50%" y="-50%" width="200%" height="200%">
+          <feDropShadow dx="0.6" dy="1.2" stdDeviation="1.5" floodColor="#000" floodOpacity="0.35" />
+        </filter>
+        {/* Subtle glow for the brass center nut */}
+        <filter id={brassFilterId} x="-50%" y="-50%" width="200%" height="200%">
+          <feDropShadow dx="0" dy="0.5" stdDeviation="0.8" floodColor="#000" floodOpacity="0.25" />
+        </filter>
+        {/* Radial gradient for the brass nut */}
+        <radialGradient id={`brassGrad-${handStyle.id}`} cx="40%" cy="35%">
+          <stop offset="0%" stopColor={brassHighlight} />
+          <stop offset="70%" stopColor={brassFill} />
+          <stop offset="100%" stopColor="#8B6914" />
+        </radialGradient>
+      </defs>
+
       {/* Markers */}
-      {markerStyle !== "none" && (
+      {effectiveMarkerStyle !== "none" && (
         <g>
           {Array.from({ length: 12 }).map((_, i) => {
             const angle = (i * 30 - 90) * (Math.PI / 180);
             const mx = cx + Math.cos(angle) * markerRadius;
             const my = cy + Math.sin(angle) * markerRadius;
 
-            if (markerStyle === "dots") {
+            if (effectiveMarkerStyle === "dots") {
+              const isCardinal = i % 3 === 0;
               return (
-                <circle
-                  key={i}
-                  cx={mx}
-                  cy={my}
-                  r={i % 3 === 0 ? 3 * scale : 2 * scale}
-                  fill={handColor}
-                  opacity={0.8}
-                />
+                <g key={i}>
+                  <circle
+                    cx={mx}
+                    cy={my}
+                    r={isCardinal ? 3.2 * scale : 1.8 * scale}
+                    fill={handColor}
+                    opacity={isCardinal ? 0.9 : 0.6}
+                  />
+                </g>
               );
             }
 
             const label =
-              markerStyle === "roman"
+              effectiveMarkerStyle === "roman"
                 ? ROMAN_NUMERALS[i]
                 : ARABIC_NUMBERS[i];
             const fontSize =
-              markerStyle === "roman"
-                ? 9 * scale
-                : 10 * scale;
+              effectiveMarkerStyle === "roman" ? 9 * scale : 10 * scale;
 
             return (
               <text
@@ -99,12 +127,15 @@ export default function ClockOverlay({
                 fill={handColor}
                 fontSize={fontSize}
                 fontFamily={
-                  markerStyle === "roman"
+                  effectiveMarkerStyle === "roman"
                     ? "'Playfair Display', Georgia, serif"
                     : "'Inter', system-ui, sans-serif"
                 }
-                fontWeight={markerStyle === "roman" ? "600" : "500"}
+                fontWeight={effectiveMarkerStyle === "roman" ? "600" : "500"}
                 opacity={0.85}
+                style={{
+                  textShadow: "0 0.5px 1px rgba(0,0,0,0.15)",
+                }}
               >
                 {label}
               </text>
@@ -120,7 +151,7 @@ export default function ClockOverlay({
           fill={handColor}
           stroke={handColor === "#F5F5F5" ? "#999" : "none"}
           strokeWidth={handColor === "#F5F5F5" ? 0.5 : 0}
-          filter="url(#handShadow)"
+          filter={`url(#${filterId})`}
         />
       </g>
 
@@ -131,27 +162,36 @@ export default function ClockOverlay({
           fill={handColor}
           stroke={handColor === "#F5F5F5" ? "#999" : "none"}
           strokeWidth={handColor === "#F5F5F5" ? 0.5 : 0}
-          filter="url(#handShadow)"
+          filter={`url(#${filterId})`}
         />
       </g>
 
-      {/* Center pin */}
+      {/* Center brass nut — outer ring */}
       <circle
         cx={cx}
         cy={cy}
-        r={4.5 * scale}
-        fill={handColor}
-        stroke={handColor === "#F5F5F5" ? "#999" : handColor}
-        strokeWidth={1}
+        r={5 * scale}
+        fill={`url(#brassGrad-${handStyle.id})`}
+        stroke="#8B6914"
+        strokeWidth={0.6 * scale}
+        filter={`url(#${brassFilterId})`}
       />
-      <circle cx={cx} cy={cy} r={2 * scale} fill={handColor === "#1a1a1a" ? "#333" : "#fff"} opacity={0.5} />
-
-      {/* Shadow filter */}
-      <defs>
-        <filter id="handShadow" x="-50%" y="-50%" width="200%" height="200%">
-          <feDropShadow dx="0.5" dy="1" stdDeviation="1.2" floodOpacity="0.3" />
-        </filter>
-      </defs>
+      {/* Center brass nut — inner highlight */}
+      <circle
+        cx={cx - 0.8 * scale}
+        cy={cy - 0.8 * scale}
+        r={2 * scale}
+        fill={brassHighlight}
+        opacity={0.4}
+      />
+      {/* Center brass nut — center dot */}
+      <circle
+        cx={cx}
+        cy={cy}
+        r={1.2 * scale}
+        fill="#6B4F1A"
+        opacity={0.5}
+      />
     </svg>
   );
 }

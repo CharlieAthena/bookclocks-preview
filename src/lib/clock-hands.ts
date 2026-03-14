@@ -2,6 +2,8 @@ export interface ClockHandStyle {
   id: string;
   name: string;
   description: string;
+  productImage: string;
+  variants: Record<string, string>;
   hourHandPath: string;
   minuteHandPath: string;
   secondHandPath?: string;
@@ -12,36 +14,54 @@ export interface ClockHandStyle {
  * All hand paths are designed with center at (0,0), pointing UP (negative Y).
  * Hour hands are shorter/wider, minute hands are longer/thinner.
  * Scale factor of ~1 = hands span roughly 40-60px in default size.
+ *
+ * Each style also carries:
+ *   - productImage: default transparent PNG from /hands/ for the selector UI
+ *   - variants: colour variants with real product photos
  */
 
-export const CLOCK_HAND_STYLES: ClockHandStyle[] = [
-  {
-    id: "classic",
-    name: "Classic",
-    description: "Simple tapered hands — clean and timeless",
-    // Tapered rectangle: wide at base, narrow at tip
-    hourHandPath: "M -3.5 4 L -2.5 -28 L 0 -32 L 2.5 -28 L 3.5 4 Z",
-    minuteHandPath: "M -2.5 4 L -1.5 -38 L 0 -44 L 1.5 -38 L 2.5 4 Z",
-    secondHandPath: "M -0.5 8 L -0.5 -42 L 0.5 -42 L 0.5 8 Z",
-    priceModifier: 0,
-  },
+export const HAND_STYLES: ClockHandStyle[] = [
   {
     id: "spade",
     name: "Spade",
-    description: "Traditional spade-tip hands — a heritage favourite",
-    // Rectangle body with diamond/spade tip
+    description: "Traditional spade-tip hands",
+    productImage: "/hands/spade-black.png",
+    variants: {
+      black: "/hands/spade-black.png",
+      gold: "/hands/spade-gold.png",
+      silver: "/hands/spade-silver.png",
+    },
     hourHandPath:
       "M -3 4 L -3 -18 L -5.5 -24 L 0 -34 L 5.5 -24 L 3 -18 L 3 4 Z",
     minuteHandPath:
       "M -2 4 L -2 -28 L -4 -34 L 0 -46 L 4 -34 L 2 -28 L 2 4 Z",
+    secondHandPath: "M -0.5 8 L -0.5 -42 L 0.5 -42 L 0.5 8 Z",
+    priceModifier: 0,
+  },
+  {
+    id: "ornate",
+    name: "Ornate",
+    description: "Elegant decorative hands",
+    productImage: "/hands/ornate-black.png",
+    variants: {
+      black: "/hands/ornate-black.png",
+      gold: "/hands/ornate-gold.png",
+    },
+    hourHandPath:
+      "M -1 4 C -1 0, -4 -4, -5 -10 C -6 -16, -3 -20, -4 -24 L -6 -26 L 0 -34 L 6 -26 L 4 -24 C 3 -20, 6 -16, 5 -10 C 4 -4, 1 0, 1 4 Z",
+    minuteHandPath:
+      "M -0.8 4 C -0.8 -2, -3.5 -8, -4 -16 C -4.5 -24, -2 -30, -3 -34 L -5 -36 L 0 -46 L 5 -36 L 3 -34 C 2 -30, 4.5 -24, 4 -16 C 3.5 -8, 0.8 -2, 0.8 4 Z",
     secondHandPath: "M -0.5 8 L -0.5 -42 L 0.5 -42 L 0.5 8 Z",
     priceModifier: 2,
   },
   {
     id: "serpentine",
     name: "Serpentine",
-    description: "S-curved elegant hands — ornate and graceful",
-    // Curved S-shape using cubic beziers
+    description: "Curved S-shaped hands",
+    productImage: "/hands/serpentine-black.png",
+    variants: {
+      black: "/hands/serpentine-black.png",
+    },
     hourHandPath:
       "M -1 4 C -1 -4, -5 -10, -4 -18 C -3 -24, 3 -26, 2 -30 L 0 -34 L -2 -30 C -3 -26, 3 -24, 4 -18 C 5 -10, 1 -4, 1 4 Z",
     minuteHandPath:
@@ -50,10 +70,13 @@ export const CLOCK_HAND_STYLES: ClockHandStyle[] = [
     priceModifier: 3,
   },
   {
-    id: "sword",
-    name: "Sword",
-    description: "Pointed sword-style hands — bold and striking",
-    // Triangular sword blade with crossguard
+    id: "gothic",
+    name: "Gothic",
+    description: "Dark gothic style",
+    productImage: "/hands/gothic-black.png",
+    variants: {
+      black: "/hands/gothic-black.png",
+    },
     hourHandPath:
       "M 0 -34 L -4 -8 L -6 -6 L -4 -4 L -3 4 L 3 4 L 4 -4 L 6 -6 L 4 -8 Z",
     minuteHandPath:
@@ -62,35 +85,77 @@ export const CLOCK_HAND_STYLES: ClockHandStyle[] = [
     priceModifier: 2,
   },
   {
+    id: "baton",
+    name: "Baton",
+    description: "Clean modern baton hands",
+    productImage: "/hands/baton-black.png",
+    variants: {
+      black: "/hands/baton-black.png",
+      gold: "/hands/baton-gold.png",
+    },
+    hourHandPath:
+      "M -2.2 4 L -2.2 -28 L -1.8 -32 L 0 -33 L 1.8 -32 L 2.2 -28 L 2.2 4 Z",
+    minuteHandPath:
+      "M -1.5 4 L -1.5 -40 L -1.2 -44 L 0 -45 L 1.2 -44 L 1.5 -40 L 1.5 4 Z",
+    secondHandPath: "M -0.3 8 L -0.3 -44 L 0.3 -44 L 0.3 8 Z",
+    priceModifier: 0,
+  },
+  {
+    id: "pointed",
+    name: "Pointed",
+    description: "Sleek pointed tips",
+    productImage: "/hands/pointed-black.png",
+    variants: {
+      black: "/hands/pointed-black.png",
+      gold: "/hands/pointed-gold.png",
+    },
+    hourHandPath:
+      "M -3 4 L -3.5 -4 L -2.5 -26 L 0 -34 L 2.5 -26 L 3.5 -4 L 3 4 Z",
+    minuteHandPath:
+      "M -2 4 L -2.5 -6 L -1.8 -38 L 0 -46 L 1.8 -38 L 2.5 -6 L 2 4 Z",
+    secondHandPath: "M -0.5 8 L -0.5 -42 L 0.5 -42 L 0.5 8 Z",
+    priceModifier: 0,
+  },
+  {
+    id: "vienna",
+    name: "Vienna",
+    description: "Classical Vienna regulator style",
+    productImage: "/hands/vienna-brass.png",
+    variants: {
+      brass: "/hands/vienna-brass.png",
+    },
+    hourHandPath:
+      "M -2 4 L -2 -10 L -4.5 -12 L -4.5 -18 L -2 -20 L -3 -26 L 0 -34 L 3 -26 L 2 -20 L 4.5 -18 L 4.5 -12 L 2 -10 L 2 4 Z",
+    minuteHandPath:
+      "M -1.5 4 L -1.5 -14 L -3.5 -16 L -3.5 -24 L -1.5 -26 L -2.5 -36 L 0 -46 L 2.5 -36 L 1.5 -26 L 3.5 -24 L 3.5 -16 L 1.5 -14 L 1.5 4 Z",
+    secondHandPath: "M -0.4 8 L -0.4 -42 L 0.4 -42 L 0.4 8 Z",
+    priceModifier: 3,
+  },
+  {
     id: "cathedral",
     name: "Cathedral",
-    description: "Gothic cathedral window hands — intricate and dramatic",
-    // Gothic arch shape with internal cutout feel
+    description: "Gothic cathedral window cutouts",
+    productImage: "/hands/cathedral-black.png",
+    variants: {
+      black: "/hands/cathedral-black.png",
+    },
     hourHandPath:
       "M -3.5 4 L -3.5 -10 L -5 -16 L -3 -22 L -4 -26 L 0 -34 L 4 -26 L 3 -22 L 5 -16 L 3.5 -10 L 3.5 4 Z M -1.5 -12 L -1.5 -20 L 0 -24 L 1.5 -20 L 1.5 -12 Z",
     minuteHandPath:
       "M -2.5 4 L -2.5 -14 L -4 -22 L -2.5 -30 L -3.5 -36 L 0 -46 L 3.5 -36 L 2.5 -30 L 4 -22 L 2.5 -14 L 2.5 4 Z M -1 -16 L -1 -28 L 0 -32 L 1 -28 L 1 -16 Z",
     secondHandPath: "M -0.5 8 L -0.5 -42 L 0.5 -42 L 0.5 8 Z",
-    priceModifier: 5,
-  },
-  {
-    id: "modern",
-    name: "Modern",
-    description: "Thin minimalist lines — sleek and contemporary",
-    // Very thin line with small circle/diamond at tip
-    hourHandPath:
-      "M -1.5 4 L -1.5 -28 L -3 -30 L 0 -34 L 3 -30 L 1.5 -28 L 1.5 4 Z",
-    minuteHandPath:
-      "M -1 4 L -1 -40 L -2 -42 L 0 -46 L 2 -42 L 1 -40 L 1 4 Z",
-    secondHandPath: "M -0.3 8 L -0.3 -44 L 0.3 -44 L 0.3 8 Z",
-    priceModifier: 0,
+    priceModifier: 4,
   },
 ];
+
+// Keep backward-compatible alias
+export const CLOCK_HAND_STYLES = HAND_STYLES;
 
 export const HAND_COLORS = [
   { id: "black", name: "Black", hex: "#1a1a1a" },
   { id: "gold", name: "Gold", hex: "#C5A572" },
   { id: "brass", name: "Brass", hex: "#B5893B" },
+  { id: "silver", name: "Silver", hex: "#C0C0C0" },
   { id: "white", name: "White", hex: "#F5F5F5" },
   { id: "rose-gold", name: "Rose Gold", hex: "#B76E79" },
 ];

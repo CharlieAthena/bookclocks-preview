@@ -1,10 +1,11 @@
 "use client";
 
 import React, { useState, useRef, useCallback, useEffect, Suspense } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
+import Link from "next/link";
 import ClockOverlay from "@/components/ClockOverlay";
 import {
-  CLOCK_HAND_STYLES,
+  HAND_STYLES,
   HAND_COLORS,
   HAND_SIZES,
   MARKER_STYLES,
@@ -22,10 +23,227 @@ interface Ripple {
 }
 
 /* ------------------------------------------------------------------ */
+/*  Mini preview card — renders book + clock overlay at small size     */
+/* ------------------------------------------------------------------ */
+function MiniPreview({
+  coverUrl,
+  centerX,
+  centerY,
+  handStyle,
+  handColor,
+  handSize,
+  markerStyle,
+  label,
+  onClick,
+}: {
+  coverUrl: string;
+  centerX: number;
+  centerY: number;
+  handStyle: ClockHandStyle;
+  handColor: string;
+  handSize: number;
+  markerStyle: MarkerStyle;
+  label: string;
+  onClick: () => void;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [dims, setDims] = useState({ w: 0, h: 0 });
+
+  useEffect(() => {
+    const measure = () => {
+      if (ref.current) {
+        const r = ref.current.getBoundingClientRect();
+        setDims({ w: r.width, h: r.height });
+      }
+    };
+    measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, []);
+
+  return (
+    <button
+      onClick={onClick}
+      className="group flex flex-col items-center gap-2 text-left"
+    >
+      <div
+        ref={ref}
+        className="relative w-full aspect-[2/3] rounded-lg overflow-hidden border-2 border-transparent group-hover:border-gold/40 transition-all bg-[#e8e6e0]"
+      >
+        {coverUrl && (
+          <img
+            src={coverUrl}
+            alt=""
+            className="w-full h-full object-cover"
+            draggable={false}
+          />
+        )}
+        {dims.w > 0 && (
+          <ClockOverlay
+            centerX={centerX}
+            centerY={centerY}
+            handStyle={handStyle}
+            handColor={handColor}
+            handSize={handSize}
+            markerStyle={markerStyle}
+            containerWidth={dims.w}
+            containerHeight={dims.h}
+          />
+        )}
+      </div>
+      <span className="text-xs text-charcoal/50 group-hover:text-charcoal/70 transition-colors text-center leading-tight">
+        {label}
+      </span>
+    </button>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Fullscreen preview modal                                          */
+/* ------------------------------------------------------------------ */
+function FullscreenPreview({
+  coverUrl,
+  bookTitle,
+  centerX,
+  centerY,
+  handStyle,
+  handColor,
+  handSize,
+  markerStyle,
+  giverName,
+  recipientName,
+  onClose,
+  onUpdatePosition,
+}: {
+  coverUrl: string;
+  bookTitle: string;
+  centerX: number;
+  centerY: number;
+  handStyle: ClockHandStyle;
+  handColor: string;
+  handSize: number;
+  markerStyle: MarkerStyle;
+  giverName: string;
+  recipientName: string;
+  onClose: () => void;
+  onUpdatePosition: (x: number, y: number) => void;
+}) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [dims, setDims] = useState({ w: 0, h: 0 });
+
+  useEffect(() => {
+    const measure = () => {
+      if (containerRef.current) {
+        const r = containerRef.current.getBoundingClientRect();
+        setDims({ w: r.width, h: r.height });
+      }
+    };
+    measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, []);
+
+  useEffect(() => {
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", handleEsc);
+    return () => document.removeEventListener("keydown", handleEsc);
+  }, [onClose]);
+
+  const handleClick = (e: React.MouseEvent) => {
+    if (!containerRef.current) return;
+    const rect = containerRef.current.getBoundingClientRect();
+    const x = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    const y = Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height));
+    onUpdatePosition(x, y);
+  };
+
+  const personalisation =
+    giverName || recipientName
+      ? `A Book Clock of ${bookTitle}${recipientName ? ` for ${recipientName}` : ""}${giverName ? ` from ${giverName}` : ""}`
+      : null;
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      {/* Close button */}
+      <button
+        onClick={onClose}
+        className="absolute top-4 right-4 z-50 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors"
+        aria-label="Close preview"
+      >
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+          <line x1="4" y1="4" x2="16" y2="16" />
+          <line x1="16" y1="4" x2="4" y2="16" />
+        </svg>
+      </button>
+
+      <div className="flex flex-col items-center gap-4 max-h-[90vh] max-w-[90vw]">
+        {/* Book + overlay */}
+        <div
+          ref={containerRef}
+          className="relative cursor-crosshair rounded-lg overflow-hidden shadow-2xl"
+          style={{ maxHeight: "78vh" }}
+          onClick={handleClick}
+        >
+          {coverUrl ? (
+            <img
+              src={coverUrl}
+              alt={bookTitle}
+              className="h-full max-h-[78vh] w-auto object-contain block"
+              draggable={false}
+              onLoad={() => {
+                if (containerRef.current) {
+                  const r = containerRef.current.getBoundingClientRect();
+                  setDims({ w: r.width, h: r.height });
+                }
+              }}
+            />
+          ) : (
+            <div className="w-[400px] h-[600px] bg-[#e8e6e0] flex items-center justify-center text-charcoal/40 text-sm">
+              No cover image
+            </div>
+          )}
+          {dims.w > 0 && (
+            <ClockOverlay
+              centerX={centerX}
+              centerY={centerY}
+              handStyle={handStyle}
+              handColor={handColor}
+              handSize={handSize}
+              markerStyle={markerStyle}
+              containerWidth={dims.w}
+              containerHeight={dims.h}
+            />
+          )}
+        </div>
+
+        {/* Personalisation text */}
+        {personalisation && (
+          <p className="text-white/70 text-sm italic text-center max-w-md">
+            {personalisation}
+          </p>
+        )}
+
+        <p className="text-white/40 text-xs">
+          Click on the cover to reposition &middot; Press Esc to close
+        </p>
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /*  Inner component that uses useSearchParams (needs Suspense)        */
 /* ------------------------------------------------------------------ */
 function ConfiguratorInner() {
   const searchParams = useSearchParams();
+  const router = useRouter();
 
   const bookTitle = searchParams.get("title") || "Selected Book";
   const bookAuthor = searchParams.get("author") || "";
@@ -36,9 +254,7 @@ function ConfiguratorInner() {
   // --- State ---
   const [centerX, setCenterX] = useState(0.5);
   const [centerY, setCenterY] = useState(0.4);
-  const [selectedStyle, setSelectedStyle] = useState<ClockHandStyle>(
-    CLOCK_HAND_STYLES[0]
-  );
+  const [selectedStyle, setSelectedStyle] = useState<ClockHandStyle>(HAND_STYLES[0]);
   const [selectedColor, setSelectedColor] = useState(HAND_COLORS[0].hex);
   const [selectedSize, setSelectedSize] = useState(HAND_SIZES[1]); // medium
   const [markerStyle, setMarkerStyle] = useState<MarkerStyle>("none");
@@ -46,6 +262,7 @@ function ConfiguratorInner() {
   const [isDragging, setIsDragging] = useState(false);
   const [containerDims, setContainerDims] = useState({ w: 0, h: 0 });
   const [coverLoaded, setCoverLoaded] = useState(false);
+  const [showFullscreen, setShowFullscreen] = useState(false);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const rippleCounter = useRef(0);
@@ -64,7 +281,6 @@ function ConfiguratorInner() {
     return () => window.removeEventListener("resize", measureContainer);
   }, [measureContainer]);
 
-  // Re-measure when cover image loads (may change container height)
   useEffect(() => {
     if (coverLoaded) measureContainer();
   }, [coverLoaded, measureContainer]);
@@ -88,7 +304,6 @@ function ConfiguratorInner() {
       updatePosition(e.clientX, e.clientY);
       (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
 
-      // Spawn ripple
       if (containerRef.current) {
         const rect = containerRef.current.getBoundingClientRect();
         const rx = e.clientX - rect.left;
@@ -122,35 +337,61 @@ function ConfiguratorInner() {
   const styleModifier = selectedStyle.priceModifier;
   const totalPrice = bookPrice + clockBasePrice + craftFee + styleModifier;
 
-  // --- Mini hand preview for style cards ---
-  const HandPreview = ({ style, active }: { style: ClockHandStyle; active: boolean }) => (
-    <svg viewBox="-16 -50 32 60" className="w-full h-full">
-      <g transform="rotate(-35)" opacity={active ? 1 : 0.6}>
-        <path d={style.hourHandPath} fill={active ? "#C5A572" : "#666"} transform="scale(0.85)" />
-      </g>
-      <g transform="rotate(60)" opacity={active ? 1 : 0.6}>
-        <path d={style.minuteHandPath} fill={active ? "#C5A572" : "#666"} transform="scale(0.85)" />
-      </g>
-      <circle r="2.5" fill={active ? "#C5A572" : "#666"} />
-    </svg>
-  );
+  // --- Add to Cart ---
+  const handleAddToCart = () => {
+    const config = {
+      bookTitle,
+      bookAuthor,
+      coverUrl,
+      giverName,
+      recipientName,
+      handStyle: selectedStyle.id,
+      handStyleName: selectedStyle.name,
+      handColor: selectedColor,
+      handColorName: HAND_COLORS.find((c) => c.hex === selectedColor)?.name || "",
+      handSize: selectedSize.id,
+      handSizeScale: selectedSize.scale,
+      markerStyle,
+      centerX,
+      centerY,
+      price: totalPrice,
+      priceBreakdown: {
+        book: bookPrice,
+        clockMechanism: clockBasePrice + styleModifier,
+        handcrafting: craftFee,
+      },
+      addedAt: new Date().toISOString(),
+    };
+    localStorage.setItem("bookClockCart", JSON.stringify(config));
+    router.push("/checkout");
+  };
+
+  // --- Variation previews ---
+  const nextStyleIndex = (HAND_STYLES.findIndex((s) => s.id === selectedStyle.id) + 1) % HAND_STYLES.length;
+  const nextStyle = HAND_STYLES[nextStyleIndex];
+
+  // Find a gold/brass variant colour
+  const goldColor = HAND_COLORS.find((c) => c.id === "gold")?.hex || "#C5A572";
+  const altColor = selectedColor === goldColor
+    ? (HAND_COLORS.find((c) => c.id === "brass")?.hex || "#B5893B")
+    : goldColor;
 
   return (
-    <div className="min-h-screen bg-cream">
+    <div className="min-h-screen bg-[#FDFBF7]">
       {/* Header */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-6 pb-4">
-        <p className="text-sm text-charcoal/50 mb-1">
-          <span className="hover:text-gold-dark cursor-pointer">Home</span>
+        <p className="text-sm text-[#2D2D2D]/50 mb-1">
+          <Link href="/" className="hover:text-[#C5A572] transition-colors">Home</Link>
           {" / "}
-          <span className="hover:text-gold-dark cursor-pointer">Search</span>
+          <Link href="/search" className="hover:text-[#C5A572] transition-colors">Search</Link>
           {" / "}
-          <span className="text-charcoal/70">Configure</span>
+          <span className="text-[#2D2D2D]/70">Configure</span>
         </p>
-        <h1 className="font-serif text-2xl sm:text-3xl text-charcoal">
+        <h1 className="font-serif text-2xl sm:text-3xl text-[#2D2D2D]">
           Design Your Clock
         </h1>
         {bookTitle !== "Selected Book" && (
-          <p className="text-sm text-charcoal/60 mt-1">
+          <p className="text-sm text-[#2D2D2D]/60 mt-1">
             {bookTitle}
             {bookAuthor ? ` by ${bookAuthor}` : ""}
           </p>
@@ -158,20 +399,19 @@ function ConfiguratorInner() {
       </div>
 
       {/* Main layout */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 pb-16">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 pb-8">
         <div className="flex flex-col lg:flex-row gap-8">
           {/* ====== LEFT: Book cover with clock overlay ====== */}
           <div className="lg:w-[60%] flex-shrink-0">
             <div
               ref={containerRef}
-              className="relative bg-warm-gray rounded-xl overflow-hidden cursor-crosshair select-none shadow-lg"
+              className="relative bg-[#e8e6e0] rounded-xl overflow-hidden cursor-crosshair select-none shadow-lg"
               style={{ touchAction: "none" }}
               onPointerDown={handlePointerDown}
               onPointerMove={handlePointerMove}
               onPointerUp={handlePointerUp}
               onPointerLeave={handlePointerUp}
             >
-              {/* Book cover image */}
               {coverUrl ? (
                 <img
                   src={coverUrl}
@@ -183,7 +423,7 @@ function ConfiguratorInner() {
                 />
               ) : (
                 <div className="w-full aspect-[2/3] flex items-center justify-center">
-                  <div className="text-center text-charcoal/40">
+                  <div className="text-center text-[#2D2D2D]/40">
                     <svg
                       className="mx-auto mb-3 w-16 h-16 opacity-30"
                       fill="none"
@@ -223,7 +463,7 @@ function ConfiguratorInner() {
               {/* Position crosshair hint */}
               {containerDims.w > 0 && (
                 <div
-                  className="absolute w-3 h-3 border-2 border-gold/40 rounded-full pointer-events-none transition-all duration-150 ease-out"
+                  className="absolute w-3 h-3 border-2 border-[#C5A572]/40 rounded-full pointer-events-none transition-all duration-150 ease-out"
                   style={{
                     left: `${centerX * 100}%`,
                     top: `${centerY * 100}%`,
@@ -247,41 +487,93 @@ function ConfiguratorInner() {
               )}
             </div>
 
-            <p className="text-xs text-charcoal/40 mt-3 text-center">
-              Click or drag on the cover to position the clock centre
-            </p>
+            <div className="flex items-center justify-between mt-3">
+              <p className="text-xs text-[#2D2D2D]/40">
+                Click or drag on the cover to position the clock centre
+              </p>
+              <button
+                onClick={() => setShowFullscreen(true)}
+                className="text-xs text-[#C5A572] hover:text-[#a88a57] transition-colors flex items-center gap-1.5"
+              >
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+                  <path d="M1 5V1h4M11 1h4v4M15 11v4h-4M5 15H1v-4" />
+                </svg>
+                View Full Size
+              </button>
+            </div>
           </div>
 
           {/* ====== RIGHT: Controls panel ====== */}
           <div className="lg:w-[40%] flex flex-col gap-6">
-            {/* Hand Style */}
+            {/* Hand Style — product photos */}
             <section>
-              <h3 className="font-serif text-lg text-charcoal mb-3">Hand Style</h3>
-              <div className="grid grid-cols-3 gap-3">
-                {CLOCK_HAND_STYLES.map((style) => {
+              <h3 className="font-serif text-lg text-[#2D2D2D] mb-3">Hand Style</h3>
+              <div className="grid grid-cols-4 gap-2.5">
+                {HAND_STYLES.map((style) => {
                   const active = selectedStyle.id === style.id;
                   return (
                     <button
                       key={style.id}
                       onClick={() => setSelectedStyle(style)}
-                      className={`relative rounded-lg border-2 p-3 transition-all duration-200 ${
+                      className={`relative rounded-lg border-2 p-2 transition-all duration-200 ${
                         active
-                          ? "border-gold bg-gold/5 shadow-sm"
-                          : "border-warm-gray hover:border-gold/40 bg-white"
+                          ? "border-[#C5A572] bg-[#C5A572]/5 shadow-sm"
+                          : "border-[#e8e6e0] hover:border-[#C5A572]/40 bg-white"
                       }`}
                     >
-                      <div className="w-full h-16 mb-2">
-                        <HandPreview style={style} active={active} />
+                      {/* Product photo */}
+                      <div className="w-full aspect-square mb-1.5 flex items-center justify-center bg-[#FDFBF7] rounded overflow-hidden">
+                        <img
+                          src={style.productImage}
+                          alt={style.name}
+                          className="w-full h-full object-contain p-1"
+                          draggable={false}
+                          onError={(e) => {
+                            // Fallback: hide broken image, show SVG preview
+                            (e.target as HTMLImageElement).style.display = "none";
+                            const parent = (e.target as HTMLImageElement).parentElement;
+                            if (parent) parent.classList.add("fallback-svg");
+                          }}
+                        />
+                        {/* SVG fallback rendered behind the img */}
+                        <svg viewBox="-16 -50 32 60" className="absolute w-8 h-10 opacity-0 pointer-events-none" aria-hidden>
+                          <g transform="rotate(-35)" opacity={active ? 1 : 0.6}>
+                            <path d={style.hourHandPath} fill={active ? "#C5A572" : "#666"} transform="scale(0.85)" />
+                          </g>
+                          <g transform="rotate(60)" opacity={active ? 1 : 0.6}>
+                            <path d={style.minuteHandPath} fill={active ? "#C5A572" : "#666"} transform="scale(0.85)" />
+                          </g>
+                          <circle r="2.5" fill={active ? "#C5A572" : "#666"} />
+                        </svg>
                       </div>
                       <p
-                        className={`text-xs font-medium text-center ${
-                          active ? "text-gold-dark" : "text-charcoal/60"
+                        className={`text-[11px] font-medium text-center leading-tight ${
+                          active ? "text-[#a88a57]" : "text-[#2D2D2D]/60"
                         }`}
                       >
                         {style.name}
                       </p>
+                      {/* Colour variant dots */}
+                      {Object.keys(style.variants).length > 1 && (
+                        <div className="flex justify-center gap-1 mt-1">
+                          {Object.keys(style.variants).map((v) => {
+                            const dotColor =
+                              v === "black" ? "#1a1a1a" :
+                              v === "gold" ? "#C5A572" :
+                              v === "silver" ? "#C0C0C0" :
+                              v === "brass" ? "#B5893B" : "#888";
+                            return (
+                              <span
+                                key={v}
+                                className="w-2.5 h-2.5 rounded-full border border-black/10"
+                                style={{ backgroundColor: dotColor }}
+                              />
+                            );
+                          })}
+                        </div>
+                      )}
                       {style.priceModifier > 0 && (
-                        <span className="absolute top-1.5 right-1.5 text-[10px] text-gold-dark bg-gold/10 px-1.5 py-0.5 rounded-full">
+                        <span className="absolute top-1 right-1 text-[9px] text-[#a88a57] bg-[#C5A572]/10 px-1 py-0.5 rounded-full leading-none">
                           +&pound;{style.priceModifier}
                         </span>
                       )}
@@ -289,11 +581,15 @@ function ConfiguratorInner() {
                   );
                 })}
               </div>
+              {/* Selected style description */}
+              <p className="text-xs text-[#2D2D2D]/50 mt-2 italic">
+                {selectedStyle.description}
+              </p>
             </section>
 
             {/* Hand Colour */}
             <section>
-              <h3 className="font-serif text-lg text-charcoal mb-3">Hand Colour</h3>
+              <h3 className="font-serif text-lg text-[#2D2D2D] mb-3">Hand Colour</h3>
               <div className="flex gap-3">
                 {HAND_COLORS.map((colour) => {
                   const active = selectedColor === colour.hex;
@@ -301,14 +597,14 @@ function ConfiguratorInner() {
                     <button
                       key={colour.id}
                       onClick={() => setSelectedColor(colour.hex)}
-                      className={`group flex flex-col items-center gap-1.5`}
+                      className="group flex flex-col items-center gap-1.5"
                       title={colour.name}
                     >
                       <div
                         className={`w-10 h-10 rounded-full border-2 transition-all duration-200 ${
                           active
-                            ? "border-gold scale-110 shadow-md"
-                            : "border-warm-gray group-hover:border-gold/40"
+                            ? "border-[#C5A572] scale-110 shadow-md"
+                            : "border-[#e8e6e0] group-hover:border-[#C5A572]/40"
                         }`}
                         style={{
                           backgroundColor: colour.hex,
@@ -320,7 +616,7 @@ function ConfiguratorInner() {
                       />
                       <span
                         className={`text-[10px] ${
-                          active ? "text-gold-dark font-medium" : "text-charcoal/50"
+                          active ? "text-[#a88a57] font-medium" : "text-[#2D2D2D]/50"
                         }`}
                       >
                         {colour.name}
@@ -333,7 +629,7 @@ function ConfiguratorInner() {
 
             {/* Hand Size */}
             <section>
-              <h3 className="font-serif text-lg text-charcoal mb-3">Hand Size</h3>
+              <h3 className="font-serif text-lg text-[#2D2D2D] mb-3">Hand Size</h3>
               <div className="flex gap-2">
                 {HAND_SIZES.map((size) => {
                   const active = selectedSize.id === size.id;
@@ -343,8 +639,8 @@ function ConfiguratorInner() {
                       onClick={() => setSelectedSize(size)}
                       className={`flex-1 py-2.5 rounded-lg text-sm font-medium border-2 transition-all duration-200 ${
                         active
-                          ? "border-gold bg-gold/5 text-gold-dark"
-                          : "border-warm-gray text-charcoal/60 hover:border-gold/40 bg-white"
+                          ? "border-[#C5A572] bg-[#C5A572]/5 text-[#a88a57]"
+                          : "border-[#e8e6e0] text-[#2D2D2D]/60 hover:border-[#C5A572]/40 bg-white"
                       }`}
                     >
                       {size.name}
@@ -356,7 +652,7 @@ function ConfiguratorInner() {
 
             {/* Number Markers */}
             <section>
-              <h3 className="font-serif text-lg text-charcoal mb-3">Number Markers</h3>
+              <h3 className="font-serif text-lg text-[#2D2D2D] mb-3">Number Markers</h3>
               <div className="flex gap-2">
                 {MARKER_STYLES.map((ms) => {
                   const active = markerStyle === ms.id;
@@ -366,8 +662,8 @@ function ConfiguratorInner() {
                       onClick={() => setMarkerStyle(ms.id)}
                       className={`flex-1 py-2.5 rounded-lg text-sm font-medium border-2 transition-all duration-200 ${
                         active
-                          ? "border-gold bg-gold/5 text-gold-dark"
-                          : "border-warm-gray text-charcoal/60 hover:border-gold/40 bg-white"
+                          ? "border-[#C5A572] bg-[#C5A572]/5 text-[#a88a57]"
+                          : "border-[#e8e6e0] text-[#2D2D2D]/60 hover:border-[#C5A572]/40 bg-white"
                       }`}
                     >
                       {ms.name}
@@ -378,32 +674,32 @@ function ConfiguratorInner() {
             </section>
 
             {/* Divider */}
-            <hr className="border-warm-gray" />
+            <hr className="border-[#e8e6e0]" />
 
             {/* Price breakdown */}
             <section>
-              <h3 className="font-serif text-lg text-charcoal mb-3">Price</h3>
-              <div className="bg-white rounded-xl border border-warm-gray p-4 space-y-2">
-                <div className="flex justify-between text-sm text-charcoal/70">
+              <h3 className="font-serif text-lg text-[#2D2D2D] mb-3">Price</h3>
+              <div className="bg-white rounded-xl border border-[#e8e6e0] p-4 space-y-2">
+                <div className="flex justify-between text-sm text-[#2D2D2D]/70">
                   <span>Book</span>
                   <span>&pound;{bookPrice.toFixed(2)}</span>
                 </div>
-                <div className="flex justify-between text-sm text-charcoal/70">
+                <div className="flex justify-between text-sm text-[#2D2D2D]/70">
                   <span>
                     Clock mechanism
                     {styleModifier > 0 && (
-                      <span className="text-gold-dark ml-1">
+                      <span className="text-[#a88a57] ml-1">
                         (+&pound;{styleModifier} {selectedStyle.name})
                       </span>
                     )}
                   </span>
                   <span>&pound;{(clockBasePrice + styleModifier).toFixed(2)}</span>
                 </div>
-                <div className="flex justify-between text-sm text-charcoal/70">
+                <div className="flex justify-between text-sm text-[#2D2D2D]/70">
                   <span>Handcrafting</span>
                   <span>&pound;{craftFee.toFixed(2)}</span>
                 </div>
-                <div className="border-t border-warm-gray pt-2 mt-2 flex justify-between font-medium text-charcoal">
+                <div className="border-t border-[#e8e6e0] pt-2 mt-2 flex justify-between font-medium text-[#2D2D2D]">
                   <span>Total</span>
                   <span className="text-lg font-serif">&pound;{totalPrice.toFixed(2)}</span>
                 </div>
@@ -411,22 +707,25 @@ function ConfiguratorInner() {
             </section>
 
             {/* Add to Cart */}
-            <button className="w-full py-4 rounded-xl bg-gold text-white font-medium text-base tracking-wide hover:bg-gold-dark active:scale-[0.98] transition-all duration-200 shadow-md hover:shadow-lg">
+            <button
+              onClick={handleAddToCart}
+              className="w-full py-4 rounded-xl bg-[#C5A572] text-white font-medium text-base tracking-wide hover:bg-[#a88a57] active:scale-[0.98] transition-all duration-200 shadow-md hover:shadow-lg"
+            >
               Add to Cart &mdash; &pound;{totalPrice.toFixed(2)}
             </button>
 
             {/* Personalisation banner */}
             {(giverName || recipientName) && (
-              <div className="bg-sage/10 border border-sage/20 rounded-xl p-4 text-center">
-                <p className="text-sm text-charcoal/70 italic">
+              <div className="bg-[#8B9E7E]/10 border border-[#8B9E7E]/20 rounded-xl p-4 text-center">
+                <p className="text-sm text-[#2D2D2D]/70 italic">
                   A Book Clock of{" "}
-                  <span className="font-medium text-charcoal not-italic">
+                  <span className="font-medium text-[#2D2D2D] not-italic">
                     {bookTitle}
                   </span>
                   {giverName && (
                     <>
                       {" "}&mdash; a gift from{" "}
-                      <span className="font-medium text-charcoal not-italic">
+                      <span className="font-medium text-[#2D2D2D] not-italic">
                         {giverName}
                       </span>
                     </>
@@ -434,7 +733,7 @@ function ConfiguratorInner() {
                   {recipientName && (
                     <>
                       {" "}to{" "}
-                      <span className="font-medium text-charcoal not-italic">
+                      <span className="font-medium text-[#2D2D2D] not-italic">
                         {recipientName}
                       </span>
                     </>
@@ -446,7 +745,92 @@ function ConfiguratorInner() {
         </div>
       </div>
 
-      {/* Ripple keyframes (injected inline) */}
+      {/* ====== Variation Previews Section ====== */}
+      {coverUrl && (
+        <div className="bg-[#f3f1eb] border-t border-[#e8e6e0]">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 py-10">
+            <h3 className="font-serif text-lg text-[#2D2D2D]/70 mb-5">
+              Other variations you might like
+            </h3>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 max-w-3xl">
+              {/* 1. Current selection */}
+              <MiniPreview
+                coverUrl={coverUrl}
+                centerX={centerX}
+                centerY={centerY}
+                handStyle={selectedStyle}
+                handColor={selectedColor}
+                handSize={selectedSize.scale}
+                markerStyle={markerStyle}
+                label="Your Design"
+                onClick={() => {}}
+              />
+
+              {/* 2. Next hand style */}
+              <MiniPreview
+                coverUrl={coverUrl}
+                centerX={centerX}
+                centerY={centerY}
+                handStyle={nextStyle}
+                handColor={selectedColor}
+                handSize={selectedSize.scale}
+                markerStyle={markerStyle}
+                label={`Try ${nextStyle.name}`}
+                onClick={() => setSelectedStyle(nextStyle)}
+              />
+
+              {/* 3. Gold/brass variant */}
+              <MiniPreview
+                coverUrl={coverUrl}
+                centerX={centerX}
+                centerY={centerY}
+                handStyle={selectedStyle}
+                handColor={altColor}
+                handSize={selectedSize.scale}
+                markerStyle={markerStyle}
+                label={altColor === goldColor ? "In Gold" : "In Brass"}
+                onClick={() => setSelectedColor(altColor)}
+              />
+
+              {/* 4. With roman numerals */}
+              <MiniPreview
+                coverUrl={coverUrl}
+                centerX={centerX}
+                centerY={centerY}
+                handStyle={selectedStyle}
+                handColor={selectedColor}
+                handSize={selectedSize.scale}
+                markerStyle="roman"
+                label="With Numerals"
+                onClick={() => setMarkerStyle("roman")}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Fullscreen preview modal */}
+      {showFullscreen && (
+        <FullscreenPreview
+          coverUrl={coverUrl}
+          bookTitle={bookTitle}
+          centerX={centerX}
+          centerY={centerY}
+          handStyle={selectedStyle}
+          handColor={selectedColor}
+          handSize={selectedSize.scale}
+          markerStyle={markerStyle}
+          giverName={giverName}
+          recipientName={recipientName}
+          onClose={() => setShowFullscreen(false)}
+          onUpdatePosition={(x, y) => {
+            setCenterX(x);
+            setCenterY(y);
+          }}
+        />
+      )}
+
+      {/* Ripple keyframes */}
       <style>{`
         @keyframes ripple-expand {
           0% {
@@ -460,6 +844,9 @@ function ConfiguratorInner() {
             opacity: 0;
           }
         }
+        .fallback-svg svg {
+          opacity: 0.5 !important;
+        }
       `}</style>
     </div>
   );
@@ -472,8 +859,8 @@ export default function ConfigurePage() {
   return (
     <Suspense
       fallback={
-        <div className="min-h-screen bg-cream flex items-center justify-center">
-          <div className="text-charcoal/40 text-sm">Loading configurator...</div>
+        <div className="min-h-screen bg-[#FDFBF7] flex items-center justify-center">
+          <div className="text-[#2D2D2D]/40 text-sm">Loading configurator...</div>
         </div>
       }
     >

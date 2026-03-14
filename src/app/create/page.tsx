@@ -1,12 +1,14 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { Suspense } from 'react';
+import Link from 'next/link';
 import type { Book } from '@/lib/types';
 
 function CreatePageInner() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const genreParam = searchParams.get('genre');
 
   const [step, setStep] = useState<1 | 2>(1);
@@ -48,16 +50,25 @@ function CreatePageInner() {
     setHasSearched(true);
 
     try {
-      const res = await fetch(`/api/books/search?q=${encodeURIComponent(query)}`);
+      const res = await fetch(`https://openlibrary.org/search.json?q=${encodeURIComponent(query)}&limit=20&fields=key,title,author_name,first_publish_year,cover_edition_key,isbn,edition_key`);
       const data = await res.json();
 
-      if (data.error) {
-        console.error(data.error);
-        setBooks([]);
-      } else {
-        setBooks(data.books || []);
-        setTotal(data.total || 0);
-      }
+      const mappedBooks: Book[] = (data.docs || []).map((doc: Record<string, unknown>) => {
+        const coverId = doc.cover_edition_key as string || ((doc.edition_key as string[])?.[0]) || null;
+        const isbn = ((doc.isbn as string[])?.[0]) || null;
+        return {
+          key: doc.key as string,
+          title: doc.title as string,
+          author: ((doc.author_name as string[])?.[0]) || 'Unknown',
+          year: (doc.first_publish_year as number) || null,
+          coverId,
+          isbn,
+          coverUrl: coverId ? `https://covers.openlibrary.org/b/olid/${coverId}-L.jpg` : isbn ? `https://covers.openlibrary.org/b/isbn/${isbn}-L.jpg` : null,
+        };
+      });
+
+      setBooks(mappedBooks);
+      setTotal(data.numFound || 0);
     } catch (err) {
       console.error('Search failed:', err);
       setBooks([]);
@@ -101,7 +112,7 @@ function CreatePageInner() {
     params.set('title', book.title);
     params.set('author', book.author);
     if (book.coverUrl) params.set('cover', book.coverUrl);
-    window.location.href = `/configure?${params.toString()}`;
+    router.push(`/configure?${params.toString()}`);
   }
 
   function handleBackToPersonalise() {
@@ -115,9 +126,9 @@ function CreatePageInner() {
         {/* Header */}
         <header className="border-b border-warm-gray">
           <div className="mx-auto max-w-6xl px-6 py-5 flex items-center justify-between">
-            <a href="/" className="font-serif text-xl text-charcoal tracking-wide">
+            <Link href="/" className="font-serif text-xl text-charcoal tracking-wide">
               The Book Clocks
-            </a>
+            </Link>
             <div className="flex items-center gap-2 text-sm text-charcoal/50">
               <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-gold text-white text-xs font-medium">1</span>
               <span className="text-charcoal/70 font-medium">Personalise</span>
@@ -219,9 +230,9 @@ function CreatePageInner() {
       {/* Header */}
       <header className="border-b border-warm-gray">
         <div className="mx-auto max-w-6xl px-6 py-5 flex items-center justify-between">
-          <a href="/" className="font-serif text-xl text-charcoal tracking-wide">
+          <Link href="/" className="font-serif text-xl text-charcoal tracking-wide">
             The Book Clocks
-          </a>
+          </Link>
           <div className="flex items-center gap-2 text-sm text-charcoal/50">
             <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-sage text-white text-xs font-medium">
               <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
